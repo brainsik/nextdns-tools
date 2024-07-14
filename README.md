@@ -12,11 +12,11 @@ For lists only showing up in combination with others, pick the one that's most a
 
 Lists come and go so you'll want to add new things that become available over time and then use the script to see where things stand.
 
-## API Key
+## Configuration
 
 The API key can be specific via the `NEXTDNS_API_KEY` environment variable or added to the config file.
 
-## Config file format
+### Config file format
 
 Create `config.json` (or use a different name and specify `-c filename`) that looks like:
 
@@ -30,4 +30,4 @@ Create `config.json` (or use a different name and specify `-c filename`) that lo
 }
 ```
 
-The profile names can be anything you want, they don't need to match the names on NextDNS. What's important is the hexadecmial profile id. The name is used with `-p` to specify the profile you want.
+The profile names can be anything you want, they don't need to match the names on NextDNS. What's important is the hexadecmial profile id. The name is used with `-p` to specify the profile to use.
