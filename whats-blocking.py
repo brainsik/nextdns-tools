@@ -12,9 +12,9 @@ URL_TMPL = URL_BASE + "/logs?status=blocked&limit=1000"
 
 def get_test_data(profile_id: str = ""):
     return [
-        dict(reasons=[dict(id="a")]),
-        dict(reasons=[dict(id="b")]),
-        dict(reasons=[dict(id="c"), dict(id="d")]),
+        dict(reasons=[dict(id="a")], domain="a"),
+        dict(reasons=[dict(id="b")], domain="b"),
+        dict(reasons=[dict(id="c"), dict(id="d")], domain="cd"),
     ]
 
 
