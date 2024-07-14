@@ -44,8 +44,8 @@ def get_file_data(filename: str):
 
 
 def main(args: argparse.Namespace, config: dict[str, str]):
-    solos: set[str] = set()
-    combos: set[tuple[str, ...]] = set()
+    solos: dict[str, set[str]] = {}
+    combos: dict[tuple[str, ...], set[str]] = {}
 
     if args.profile:
         api_key = os.environ.get("NEXTDNS_API_KEY", config["api_key"])
@@ -62,24 +62,32 @@ def main(args: argparse.Namespace, config: dict[str, str]):
     # find entries appearnig by themselves
     for entry in data:
         if len(entry["reasons"]) == 1:
-            solos.add(entry["reasons"][0]["id"])
+            bl_id = entry["reasons"][0]["id"]
+            solos.setdefault(bl_id, set())
+            solos[bl_id].add(entry["domain"])
             continue
 
     # find entries only appearing with other entries that aren't unique
     for entry in data:
-        ids = set([r["id"] for r in entry["reasons"]])
-        if solos & ids:  # keep going if any of these blocklists are in solos
+        bl_ids = set([r["id"] for r in entry["reasons"]])
+        if solos.keys() & bl_ids:  # keep going if any of these blocklists are in solos
             continue
-        combos.add(tuple(sorted(ids)))
+        k = tuple(sorted(bl_ids))
+        combos.setdefault(k, set())
+        combos[k].add(entry["domain"])
 
-    print("\nBlocklists appearing by themselves:")
-    for blocklist in sorted(solos):
-        print(blocklist)
+    print("\n#\n# Blocklists appearing by themselves\n#\n")
+    print("domains\tid")
+    print("--     \t--")
+    for bl_id in sorted(solos):
+        print("{}\t{}\n\t{}".format(len(solos[bl_id]), bl_id, solos[bl_id]))
 
     if combos:
-        print("\nBlocklists found only in combos:")
-        for blocklists in combos:
-            print(blocklists)
+        print("\n#\n# Blocklists found only in combos\n#\n")
+        print("domains\tid")
+        print("--     \t--")
+        for bl_ids in combos:
+            print("{}\t{}\n\t{}".format(len(combos[bl_ids]), bl_ids, combos[bl_ids]))
 
 
 def get_config(fname: str):
