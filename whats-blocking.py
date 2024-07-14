@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import enum
 import json
 import os
 import time
@@ -47,6 +48,11 @@ def main(args: argparse.Namespace, config: dict[str, str]):
     solos: dict[str, set[str]] = {}
     combos: dict[tuple[str, ...], set[str]] = {}
 
+    domains: set[str] = set()
+    domain_hits: dict[str, set[str]] = {}  # [blocklist, {domains}]
+
+    redundancy: dict[str, list[int]] = {}  # [blocklist, [redundancy num, …]]
+
     if args.profile:
         api_key = os.environ.get("NEXTDNS_API_KEY", config["api_key"])
         profile_id = config["profiles"][args.profile]
@@ -59,20 +65,33 @@ def main(args: argparse.Namespace, config: dict[str, str]):
 
     print("✅ Found {} entries".format(len(data)))
 
-    # find entries appearnig by themselves
     for entry in data:
-        if len(entry["reasons"]) == 1:
-            bl_id = entry["reasons"][0]["id"]
-            solos.setdefault(bl_id, set())
-            solos[bl_id].add(entry["domain"])
-            continue
+        domain = entry["domain"]
 
-    # find entries only appearing with other entries that aren't unique
-    for entry in data:
-        bl_ids = set([r["id"] for r in entry["reasons"]])
-        if solos.keys() & bl_ids:  # keep going if any of these blocklists are in solos
+        if domain in domains:
             continue
-        k = tuple(sorted(bl_ids))
+        domains.add(domain)
+
+        for r in entry["reasons"]:
+            r_id = r["id"]
+            domain_hits.setdefault(r_id, set())
+            domain_hits[r_id].add(domain)
+
+            redundancy.setdefault(r_id, [])
+            redundancy[r_id].append(len(entry["reasons"]))
+
+            # separately track blocklists appearing on their own
+            if len(entry["reasons"]) == 1:
+                solos.setdefault(r_id, set())
+                solos[r_id].add(domain)
+                continue
+
+    # 2nd pass: find entries only appearing with other entries that aren't unique
+    for entry in data:
+        r_ids = set([r["id"] for r in entry["reasons"]])
+        if solos.keys() & r_ids:  # keep going if any of these blocklists are in solos
+            continue
+        k = tuple(sorted(r_ids))
         combos.setdefault(k, set())
         combos[k].add(entry["domain"])
 
@@ -88,6 +107,35 @@ def main(args: argparse.Namespace, config: dict[str, str]):
         print("--     \t--")
         for bl_ids in combos:
             print("{}\t{}\n\t{}".format(len(combos[bl_ids]), bl_ids, combos[bl_ids]))
+
+    print("\n#\n# Domain coverage ({} total)\n#\n".format(len(domains)))
+    for r_id in sorted(
+        domain_hits,
+        key=lambda k: len(domain_hits[k]) / len(domains),
+        reverse=True,
+    ):
+        pct = len(domain_hits[r_id]) / len(domains)
+        print("{:4.1f}% {}".format(100 * pct, r_id))
+
+    print("\n#\n# Redundancy histogram\n#\n")
+    for r_id in sorted(redundancy):
+        level_hist: dict[int, int] = {}
+        for level in redundancy[r_id]:
+            level_hist.setdefault(level, 0)
+            level_hist[level] += 1
+        print(r_id)
+
+        for n in range(1, max(level_hist.keys()) + 1):
+            level_str = "{:2d}".format(n)
+            if n == 1:
+                level_str = "🥇"
+            if n == 2:
+                level_str = "🥈"
+            if n == 3:
+                level_str = "🥉"
+
+            print("{}: {}".format(level_str, "*" * level_hist.get(n, 0)))
+        print()
 
 
 def get_config(fname: str):

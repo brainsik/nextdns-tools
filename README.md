@@ -4,11 +4,9 @@ This is where I'm gonna drop any scripts I make for managing NextDNS. Mostly, it
 
 ## `whats-blocking.py`
 
-It's common to over-subscribe to blocklists, but it quickly turns into diminishing returns as there's a lot of overlap in what they block. This tool tries to glean which blocklists are actually needed.
+It's common to over-subscribe to blocklists, but it quickly turns into diminishing returns as there's a lot of overlap in what they block. This tool tries to glean which blocklists are actually needed. By showing various statistics.
 
-It finds all the lists that are the only one to block a domain and then finds anything that only shows up in combinations with others. The idea is to run this over some period of time (days, weeks, months, up to you) and see what lists are doing the work. You can then, in theory, unsubscribe from everything else.
-
-For lists only showing up in combination with others, pick the one that's most actively updated.
+The idea is to run this over some period of time (days, weeks, months, up to you) and see what lists are doing the work. You can then, in theory, unsubscribe from everything else.
 
 Lists come and go so you'll want to add new things that become available over time and then use the script to see where things stand.
 
