@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pyright: strict
 
 import argparse
 import json
@@ -10,7 +11,6 @@ from urllib.request import urlopen, Request
 
 URL_BASE = "https://api.nextdns.io/profiles/{}"
 URL_TMPL = URL_BASE + "/logs?status=blocked&limit=1000"
-
 
 NextDnsJson = Any
 DomData = dict[str, set[str]]  # d[domain] = set[blists]
@@ -71,7 +71,34 @@ def get_file_data(fname: str) -> NextDnsJson:
     return json_to_domdata(data["data"])
 
 
-def process_domdata(domdata: DomData):
+def update_domdata_store(name: str, domdata: DomData) -> DomData:
+    fname = "{}.domdata.json".format(name)
+
+    try:
+        with open(fname, "r") as fi:
+            jsondata = json.load(fi)
+            for dom in jsondata:
+                if dom in domdata:
+                    if set(jsondata[dom]) != domdata[dom]:
+                        print("⚠️  Blocklists used for {} changed".format(dom))
+                        print("Was: {}".format(sorted(domdata[dom])))
+                        print("Now: {}".format(sorted(set(jsondata[dom]))))
+                else:
+                    domdata[dom] = set(jsondata[dom])
+    except FileNotFoundError:
+        print("⚠️  No store found; will create", fname)
+
+    with open(fname, "w") as fo:
+        json_data: dict[str, list[str]] = {}
+        for dom in domdata:
+            json_data[dom] = list(domdata[dom])
+        print("💾 Writing store", fname, "with", len(json_data), "domains")
+        json.dump(json_data, fo, indent=2)
+
+    return domdata
+
+
+def print_domdata(domdata: DomData) -> None:
     print("⚙️  Processing {} domains".format(len(domdata)))
 
     solos: dict[str, set[str]] = defaultdict(set)  # blist -> doms
@@ -134,7 +161,7 @@ def process_domdata(domdata: DomData):
         print()
 
 
-def get_args():
+def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Find blocklists in use.")
     parser.add_argument("-c", "--config", default="config.json")
     parser.add_argument(
@@ -159,15 +186,17 @@ def main():
 
     if args.profile:
         api_key = os.environ.get("NEXTDNS_API_KEY", config["api_key"])
-        profile_id = config["profiles"][args.profile]
+        store_name = profile_id = config["profiles"][args.profile]
         domdata = get_api_data(api_key, profile_id, args.keep)
     elif args.file:
+        store_name = args.file.partition("-")[0]
         domdata = get_file_data(args.file)
     else:
         print("No profile or file specified!")  # shouldn't get here
         raise SystemExit(1)
 
-    process_domdata(domdata)
+    domdata = update_domdata_store(store_name, domdata)
+    print_domdata(domdata)
 
 
 if __name__ == "__main__":
