@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# pyright: strict
 
 import argparse
 import json
@@ -80,29 +79,38 @@ def get_domdata_store(fname: str) -> DomData:
             jsondata = json.load(fi)
             return {dom: set(jsondata[dom]) for dom in jsondata}
     except FileNotFoundError:
-        print("⚠️  No store found; will create", fname)
-    assert False
+        print("⚠️  No store found", fname)
+    return {}
 
 
 def update_domdata_store(name: str, domdata: DomData) -> DomData:
     fname = DOMDATA_FNAME_TMPL.format(name)
 
     domdata_store = get_domdata_store(fname)
+    combined: DomData = {}
+
+    if not domdata_store and not domdata:
+        return {}  # nothing to do
+
+    # announce data that has changed
     for dom in domdata_store:
         if dom in domdata:
             if set(domdata_store[dom]) != domdata[dom]:
                 print("⚠️  Blocklists used for {} changed".format(dom))
-                print("Was: {}".format(sorted(domdata[dom])))
-                print("Now: {}".format(sorted(set(domdata_store[dom]))))
-        else:
-            domdata[dom] = set(domdata_store[dom])
+                print("Was: {}".format(sorted(set(domdata_store[dom]))))
+                print("Now: {}".format(sorted(domdata[dom])))
 
+    # combine the store with the passed data; passed data overwrites
+    combined.update(domdata_store)
+    combined.update(domdata)
+
+    # write combined data to the store
     with open(fname, "w") as fo:
-        json_data = {dom: list(domdata[dom]) for dom in domdata}
+        json_data = {dom: list(combined[dom]) for dom in combined}
         print("💾 Writing store", fname, "with", len(json_data), "domains")
         json.dump(json_data, fo, indent=2)
 
-    return domdata
+    return combined
 
 
 def print_domdata(domdata: DomData) -> None:
