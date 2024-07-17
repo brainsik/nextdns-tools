@@ -14,7 +14,10 @@ URL_TMPL = URL_BASE + "/logs?status=blocked&limit=1000"
 
 NextDnsJson = Any
 DomData = dict[str, set[str]]  # d[domain] = set[blists]
+DomDataFile = dict[str, list[str]]  # d[domain] = list[blists]
 BlistData = dict[str, set[str]]  # d[blist_id] = set[domains]
+
+DOMDATA_FNAME_TMPL = "{}.domdata.json"
 
 
 class ConfigJson(TypedDict):
@@ -71,27 +74,31 @@ def get_file_data(fname: str) -> NextDnsJson:
     return json_to_domdata(data["data"])
 
 
-def update_domdata_store(name: str, domdata: DomData) -> DomData:
-    fname = "{}.domdata.json".format(name)
-
+def get_domdata_store(fname: str) -> DomData:
     try:
         with open(fname, "r") as fi:
             jsondata = json.load(fi)
-            for dom in jsondata:
-                if dom in domdata:
-                    if set(jsondata[dom]) != domdata[dom]:
-                        print("⚠️  Blocklists used for {} changed".format(dom))
-                        print("Was: {}".format(sorted(domdata[dom])))
-                        print("Now: {}".format(sorted(set(jsondata[dom]))))
-                else:
-                    domdata[dom] = set(jsondata[dom])
+            return {dom: set(jsondata[dom]) for dom in jsondata}
     except FileNotFoundError:
         print("⚠️  No store found; will create", fname)
+    assert False
+
+
+def update_domdata_store(name: str, domdata: DomData) -> DomData:
+    fname = DOMDATA_FNAME_TMPL.format(name)
+
+    domdata_store = get_domdata_store(fname)
+    for dom in domdata_store:
+        if dom in domdata:
+            if set(domdata_store[dom]) != domdata[dom]:
+                print("⚠️  Blocklists used for {} changed".format(dom))
+                print("Was: {}".format(sorted(domdata[dom])))
+                print("Now: {}".format(sorted(set(domdata_store[dom]))))
+        else:
+            domdata[dom] = set(domdata_store[dom])
 
     with open(fname, "w") as fo:
-        json_data: dict[str, list[str]] = {}
-        for dom in domdata:
-            json_data[dom] = list(domdata[dom])
+        json_data = {dom: list(domdata[dom]) for dom in domdata}
         print("💾 Writing store", fname, "with", len(json_data), "domains")
         json.dump(json_data, fo, indent=2)
 
@@ -156,7 +163,6 @@ def print_domdata(domdata: DomData) -> None:
                 level_str = "🥈"
             if n == 3:
                 level_str = "🥉"
-
             print("{}: {}".format(level_str, "*" * level_hist.get(n, 0)))
         print()
 
@@ -166,6 +172,9 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("-c", "--config", default="config.json")
     parser.add_argument(
         "-k", "--keep", help="Keep downloaded data in a file", action="store_true"
+    )
+    parser.add_argument(
+        "--stats-only", help="Only show saved stats", action="store_true"
     )
 
     group = parser.add_mutually_exclusive_group(required=True)
@@ -183,19 +192,25 @@ def get_config(fname: str) -> ConfigJson:
 def main():
     args = get_args()
     config = get_config(args.config)
+    domdata: DomData = {}
 
-    if args.profile:
+    if args.file:
+        store_name = args.file.partition("-")[0]
+        if not args.stats_only:
+            domdata = get_file_data(args.file)
+    elif args.profile:
         api_key = os.environ.get("NEXTDNS_API_KEY", config["api_key"])
         store_name = profile_id = config["profiles"][args.profile]
-        domdata = get_api_data(api_key, profile_id, args.keep)
-    elif args.file:
-        store_name = args.file.partition("-")[0]
-        domdata = get_file_data(args.file)
+        if not args.stats_only:
+            domdata = get_api_data(api_key, profile_id, args.keep)
     else:
         print("No profile or file specified!")  # shouldn't get here
         raise SystemExit(1)
 
-    domdata = update_domdata_store(store_name, domdata)
+    if args.stats_only:
+        domdata = get_domdata_store(DOMDATA_FNAME_TMPL.format(store_name))
+    else:
+        domdata = update_domdata_store(store_name, domdata)
     print_domdata(domdata)
 
 
