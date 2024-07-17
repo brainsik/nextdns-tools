@@ -113,7 +113,7 @@ def update_domdata_store(name: str, domdata: DomData) -> DomData:
     return combined
 
 
-def print_domdata(domdata: DomData) -> None:
+def print_domdata(domdata: DomData, args: argparse.Namespace) -> None:
     print("⚙️  Processing {} domains".format(len(domdata)))
 
     solos: dict[str, set[str]] = defaultdict(set)  # blist -> doms
@@ -156,23 +156,24 @@ def print_domdata(domdata: DomData) -> None:
     for blist in sorted(blistdata, key=coverage_pct, reverse=True):
         print("{:4.1f}% {}".format(100 * coverage_pct(blist), blist))
 
-    print("\n#\n# Redundancy histogram\n#\n")
-    for blist in sorted(overlap):
-        level_hist: dict[int, int] = defaultdict(int)
-        for level in overlap[blist]:
-            level_hist[level] += 1
-        print(blist)
+    if args.histogram:
+        print("\n#\n# Redundancy histogram\n#\n")
+        for blist in sorted(overlap):
+            level_hist: dict[int, int] = defaultdict(int)
+            for level in overlap[blist]:
+                level_hist[level] += 1
+            print(blist)
 
-        for n in range(1, max(level_hist.keys()) + 1):
-            level_str = "{:2d}".format(n)
-            if n == 1:
-                level_str = "🥇"
-            if n == 2:
-                level_str = "🥈"
-            if n == 3:
-                level_str = "🥉"
-            print("{}: {}".format(level_str, "*" * level_hist.get(n, 0)))
-        print()
+            for n in range(1, max(level_hist.keys()) + 1):
+                level_str = "{:2d}".format(n)
+                if n == 1:
+                    level_str = "🥇"
+                if n == 2:
+                    level_str = "🥈"
+                if n == 3:
+                    level_str = "🥉"
+                print("{}: {}".format(level_str, "*" * level_hist.get(n, 0)))
+            print()
 
 
 def get_args() -> argparse.Namespace:
@@ -183,6 +184,9 @@ def get_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--stats-only", help="Only show saved stats", action="store_true"
+    )
+    parser.add_argument(
+        "--histogram", help="Show overlap histogram", action="store_true"
     )
 
     group = parser.add_mutually_exclusive_group(required=True)
@@ -219,7 +223,7 @@ def main():
         domdata = get_domdata_store(DOMDATA_FNAME_TMPL.format(store_name))
     else:
         domdata = update_domdata_store(store_name, domdata)
-    print_domdata(domdata)
+    print_domdata(domdata, args)
 
 
 if __name__ == "__main__":
