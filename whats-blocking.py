@@ -6,10 +6,12 @@ import os
 import time
 from collections import defaultdict
 from typing import Any, Callable, TypedDict
+from urllib.error import HTTPError
 from urllib.request import urlopen, Request
 
 URL_BASE = "https://api.nextdns.io/profiles/{}"
 URL_TMPL = URL_BASE + "/logs?status=blocked&limit=1000"
+URL_RETRIES = 3
 
 NextDnsJson = Any
 DomData = dict[str, set[str]]  # d[domain] = set[blists]
@@ -48,10 +50,21 @@ def get_api_data(api_key: str, profile_id: str, keep: bool = False) -> NextDnsJs
     url = URL_TMPL.format(profile_id)
 
     # Requests are blocked (403) when the default urllib user-agent is sent (WTF?)
+    resp = None
     print("📡 Downloading logs …")
-    resp = urlopen(
-        Request(url, headers={"X-Api-Key": api_key, "User-Agent": "Phi/1.618"})
-    )
+    for tries in range(URL_RETRIES + 1):
+        try:
+            resp = urlopen(
+                Request(url, headers={"X-Api-Key": api_key, "User-Agent": "Phi/1.618"})
+            )
+            break
+        except HTTPError:
+            if tries >= URL_RETRIES:
+                print("🚨 API request failed", tries + 1, "times")
+                raise
+            time.sleep(20)
+
+    assert resp is not None, "Somehow, `resp` is still None. This shouldn't happen."
     data: NextDnsJson = json.loads(resp.read())
 
     if keep:
